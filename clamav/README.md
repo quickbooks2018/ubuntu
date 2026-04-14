@@ -31,7 +31,7 @@ After installation:
   - `~/Documents`
   - `~/Public`
 - detected files from on-access scanning are moved to quarantine
-- large developer-heavy paths are excluded from daily scanning to keep it practical
+- the daily scan walks readable files under the watched user folders
 
 This is not meant to behave exactly like Microsoft Defender or Bitdefender. It is a practical Ubuntu-native ClamAV setup focused on:
 
@@ -305,10 +305,9 @@ ExecStop=
 ExecStop=/bin/kill -SIGTERM $MAINPID
 OVERRIDE
 
-cat >/usr/local/bin/clamav-daily-scan <<SCAN
-#!/usr/bin/env bash
-set -uo pipefail
+printf '%s\n' '#!/usr/bin/env bash' 'set -uo pipefail' '' "TARGET_HOME=$(printf '%q' "${TARGET_HOME}")" '' >/usr/local/bin/clamav-daily-scan
 
+cat >>/usr/local/bin/clamav-daily-scan <<'SCAN'
 SCAN_PATHS=(
   "${TARGET_HOME}/Downloads"
   "${TARGET_HOME}/Desktop"
@@ -318,26 +317,26 @@ SCAN_PATHS=(
 
 BATCH_SIZE=200
 LOG_FILE="/var/log/clamav/daily-scan.log"
-START_STAMP="\$(date '+%Y-%m-%d %H:%M:%S')"
+START_STAMP="$(date '+%Y-%m-%d %H:%M:%S')"
 ACTIVE_SCAN_PATHS=()
 
-mkdir -p "\$(dirname "\${LOG_FILE}")"
+mkdir -p "$(dirname "${LOG_FILE}")"
 
-for path in "\${SCAN_PATHS[@]}"; do
-  [[ -d "\${path}" ]] && ACTIVE_SCAN_PATHS+=("\${path}")
+for path in "${SCAN_PATHS[@]}"; do
+  [[ -d "${path}" ]] && ACTIVE_SCAN_PATHS+=("${path}")
 done
 
-if [[ "\${#ACTIVE_SCAN_PATHS[@]}" -eq 0 ]]; then
-  END_STAMP="\$(date '+%Y-%m-%d %H:%M:%S')"
-  echo "[\${END_STAMP}] Scan aborted: no valid scan paths were found" >> "\${LOG_FILE}"
+if [[ "${#ACTIVE_SCAN_PATHS[@]}" -eq 0 ]]; then
+  END_STAMP="$(date '+%Y-%m-%d %H:%M:%S')"
+  echo "[${END_STAMP}] Scan aborted: no valid scan paths were found" >> "${LOG_FILE}"
   exit 2
 fi
 
-echo "[\${START_STAMP}] Starting ClamAV daily scan for: \${ACTIVE_SCAN_PATHS[*]}" >> "\${LOG_FILE}"
+echo "[${START_STAMP}] Starting ClamAV daily scan for: ${ACTIVE_SCAN_PATHS[*]}" >> "${LOG_FILE}"
 
 if ! systemctl is-active --quiet clamav-daemon.service; then
-  END_STAMP="\$(date '+%Y-%m-%d %H:%M:%S')"
-  echo "[\${END_STAMP}] Scan aborted: clamav-daemon.service is not running" >> "\${LOG_FILE}"
+  END_STAMP="$(date '+%Y-%m-%d %H:%M:%S')"
+  echo "[${END_STAMP}] Scan aborted: clamav-daemon.service is not running" >> "${LOG_FILE}"
   exit 2
 fi
 
@@ -348,77 +347,67 @@ declare -a BATCH=()
 scan_batch() {
   local batch_status=0
 
-  if [[ "\${#BATCH[@]}" -eq 0 ]]; then
+  if [[ "${#BATCH[@]}" -eq 0 ]]; then
     return 0
   fi
 
-  FILES_SCANNED=\$((FILES_SCANNED + \${#BATCH[@]}))
+  FILES_SCANNED=$((FILES_SCANNED + ${#BATCH[@]}))
 
-  if /usr/bin/clamdscan --fdpass --infected --log="\${LOG_FILE}" "\${BATCH[@]}"; then
+  if /usr/bin/clamdscan --fdpass --infected --log="${LOG_FILE}" "${BATCH[@]}"; then
     batch_status=0
   else
-    batch_status=\$?
+    batch_status=$?
   fi
 
   BATCH=()
-  return "\${batch_status}"
+  return "${batch_status}"
 }
 
 while IFS= read -r -d '' FILE_PATH; do
-  BATCH+=("\${FILE_PATH}")
+  BATCH+=("${FILE_PATH}")
 
-  if [[ "\${#BATCH[@]}" -ge "\${BATCH_SIZE}" ]]; then
+  if [[ "${#BATCH[@]}" -ge "${BATCH_SIZE}" ]]; then
     if scan_batch; then
       :
     else
-      BATCH_STATUS=\$?
-      if [[ "\${BATCH_STATUS}" -eq 1 ]]; then
+      BATCH_STATUS=$?
+      if [[ "${BATCH_STATUS}" -eq 1 ]]; then
         STATUS=1
       else
-        STATUS="\${BATCH_STATUS}"
+        STATUS="${BATCH_STATUS}"
         break
       fi
     fi
   fi
 done < <(
-  find "\${ACTIVE_SCAN_PATHS[@]}" \
-    \( \
-      -name node_modules -o \
-      -name .git -o \
-      -name .venv -o \
-      -name __pycache__ -o \
-      -name dist -o \
-      -name build -o \
-      -name target \
-    \) -prune -o \
-    -type f -readable -print0
+  find "${ACTIVE_SCAN_PATHS[@]}" -type f -readable -print0
 )
 
-if [[ "\${STATUS}" -eq 0 || "\${STATUS}" -eq 1 ]]; then
+if [[ "${STATUS}" -eq 0 || "${STATUS}" -eq 1 ]]; then
   if scan_batch; then
     :
   else
-    BATCH_STATUS=\$?
-    if [[ "\${BATCH_STATUS}" -eq 1 ]]; then
+    BATCH_STATUS=$?
+    if [[ "${BATCH_STATUS}" -eq 1 ]]; then
       STATUS=1
     else
-      STATUS="\${BATCH_STATUS}"
+      STATUS="${BATCH_STATUS}"
     fi
   fi
 fi
 
-END_STAMP="\$(date '+%Y-%m-%d %H:%M:%S')"
-echo "[\${END_STAMP}] Files submitted to clamdscan: \${FILES_SCANNED}" >> "\${LOG_FILE}"
+END_STAMP="$(date '+%Y-%m-%d %H:%M:%S')"
+echo "[${END_STAMP}] Files submitted to clamdscan: ${FILES_SCANNED}" >> "${LOG_FILE}"
 
-if [[ "\${STATUS}" -eq 0 ]]; then
-  echo "[\${END_STAMP}] Scan completed: no threats found" >> "\${LOG_FILE}"
-elif [[ "\${STATUS}" -eq 1 ]]; then
-  echo "[\${END_STAMP}] Scan completed: threats found" >> "\${LOG_FILE}"
+if [[ "${STATUS}" -eq 0 ]]; then
+  echo "[${END_STAMP}] Scan completed: no threats found" >> "${LOG_FILE}"
+elif [[ "${STATUS}" -eq 1 ]]; then
+  echo "[${END_STAMP}] Scan completed: threats found" >> "${LOG_FILE}"
 else
-  echo "[\${END_STAMP}] Scan completed with error code \${STATUS}" >> "\${LOG_FILE}"
+  echo "[${END_STAMP}] Scan completed with error code ${STATUS}" >> "${LOG_FILE}"
 fi
 
-exit "\${STATUS}"
+exit "${STATUS}"
 SCAN
 
 chmod 0755 /usr/local/bin/clamav-daily-scan
@@ -554,7 +543,7 @@ sudo rm -f /var/lib/clamav/quarantine/eicar.com.txt
 
 - `clamav.log` and `clamonacc.log` usually require `sudo`
 - `freshclam` can log an older `NotifyClamd` error if it ran before `clamd.conf` existed during initial setup
-- if a user keeps huge development trees on the desktop, adjust the prune rules in `/usr/local/bin/clamav-daily-scan`
+- if a user keeps huge development trees on the desktop, reduce the watched paths or add custom `find` pruning in `/usr/local/bin/clamav-daily-scan`
 - if you want broader on-access coverage, edit `/etc/clamav/onaccess.watch`
 - if you want fewer exclusions, edit `/etc/clamav/onaccess.exclude`
 

@@ -136,10 +136,9 @@ ExecStop=
 ExecStop=/bin/kill -SIGTERM $MAINPID
 OVERRIDE
 
-cat >/usr/local/bin/clamav-daily-scan <<SCAN
-#!/usr/bin/env bash
-set -uo pipefail
+printf '%s\n' '#!/usr/bin/env bash' 'set -uo pipefail' '' "TARGET_HOME=$(printf '%q' "${TARGET_HOME}")" '' >/usr/local/bin/clamav-daily-scan
 
+cat >>/usr/local/bin/clamav-daily-scan <<'SCAN'
 SCAN_PATHS=(
   "${TARGET_HOME}/Downloads"
   "${TARGET_HOME}/Desktop"
