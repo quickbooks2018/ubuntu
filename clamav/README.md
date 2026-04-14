@@ -121,23 +121,13 @@ The daily scan script:
 - uses `find` to collect readable regular files
 - batches files into groups and submits them to `clamdscan`
 - avoids handing recursive directories directly to `clamdscan`
-- prunes common heavy developer paths
-
-Current prune rules:
-
-- `node_modules`
-- `.git`
-- `.venv`
-- `__pycache__`
-- `dist`
-- `build`
-- `target`
+- recursively includes user-created folders under those paths, including any folder created under `~/Desktop`
 
 Why:
 
 - recursive directory scans with `clamdscan` can be noisy or inefficient on large dev trees
 - batching regular files is more stable
-- excluding large dependency/build trees keeps daily scans fast enough to remain useful
+- using `find` over the full directory tree ensures newly added user folders are included in the scheduled scan
 
 ## On-Access Behavior
 

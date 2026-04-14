@@ -212,17 +212,7 @@ while IFS= read -r -d '' FILE_PATH; do
     fi
   fi
 done < <(
-  find "${ACTIVE_SCAN_PATHS[@]}" \
-    \( \
-      -name node_modules -o \
-      -name .git -o \
-      -name .venv -o \
-      -name __pycache__ -o \
-      -name dist -o \
-      -name build -o \
-      -name target \
-    \) -prune -o \
-    -type f -readable -print0
+  find "${ACTIVE_SCAN_PATHS[@]}" -type f -readable -print0
 )
 
 if [[ "${STATUS}" -eq 0 || "${STATUS}" -eq 1 ]]; then
