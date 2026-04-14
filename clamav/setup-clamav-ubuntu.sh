@@ -126,9 +126,7 @@ CLAMD
   done
 } >/etc/clamav/onaccess.watch
 
-cat >/etc/clamav/onaccess.exclude <<EXCLUDE
-${TARGET_HOME}/Desktop/sandbox
-EXCLUDE
+: >/etc/clamav/onaccess.exclude
 
 cat >/etc/systemd/system/clamav-clamonacc.service.d/override.conf <<'OVERRIDE'
 [Service]
@@ -216,7 +214,6 @@ while IFS= read -r -d '' FILE_PATH; do
 done < <(
   find "${ACTIVE_SCAN_PATHS[@]}" \
     \( \
-      -path "${TARGET_HOME}/Desktop/sandbox" -o \
       -name node_modules -o \
       -name .git -o \
       -name .venv -o \
