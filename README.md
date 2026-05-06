@@ -14,6 +14,7 @@ This repository contains practical Ubuntu-focused security setup material, start
 The ClamAV setup in this repository provides:
 
 - automatic signature updates
+- unattended Ubuntu security upgrades for ClamAV package updates
 - a running `clamd` daemon for faster scans
 - a daily scheduled scan through `systemd`
 - on-access scanning for common user folders
@@ -59,4 +60,4 @@ Good next additions for the same repository:
 - `ufw` baseline rules
 - `fail2ban` setup
 - log monitoring notes
-- unattended security upgrades
+- unattended upgrade alerting and reboot policy
